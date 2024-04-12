@@ -14,9 +14,9 @@ int trapDoublePointer(vector<int>& height)
     }
 
     maxRight[size - 1] = height[size - 1];
-    for(int i = 1; i < size; i++)
+    for(int i = size -2; i >= 0; i--)
     {
-        maxLeft[i] = max(height[i], maxLeft[i-1]);
+        maxRight[i] = max(height[i], maxRight[i+1]);
     }
 
     int sum = 0;
