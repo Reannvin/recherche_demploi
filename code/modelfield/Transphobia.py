@@ -78,6 +78,44 @@ class PositionalEncoding(nn.Module):
         # [seq_len = 30, d_model = 512]
         # it gonna add with tok_emb : [128, 30, 512]
 
+class TokenEmbedding(nn.Embedding):
+    """
+    Token Embedding using torch.nn
+    they will dense representation of word using weighted matrix
+    """
+
+    def __init__(self, vocab_size, d_model):
+        """
+        class for token embedding that included positional information
+
+        :param vocab_size: size of vocabulary
+        :param d_model: dimensions of model
+        """
+        super(TokenEmbedding, self).__init__(vocab_size, d_model, padding_idx=1)
+        
+class TransformerEmbedding(nn.Module):
+    """
+    token embedding + positional encoding (sinusoid)
+    positional encoding can give positional information to network
+    """
+
+    def __init__(self, vocab_size, d_model, max_len, drop_prob, device):
+        """
+        class for word embedding that included positional information
+
+        :param vocab_size: size of vocabulary
+        :param d_model: dimensions of model
+        """
+        super(TransformerEmbedding, self).__init__()
+        self.tok_emb = TokenEmbedding(vocab_size, d_model)
+        self.pos_emb = PositionalEncoding(d_model, max_len, device)
+        self.drop_out = nn.Dropout(p=drop_prob)
+
+    def forward(self, x):
+        tok_emb = self.tok_emb(x)
+        pos_emb = self.pos_emb(x)
+        return self.drop_out(tok_emb + pos_emb)
+
 #-------------------------------2-------------------------------------------------
 #
 #    ___                      ______________________
@@ -161,3 +199,165 @@ class ScaleDotProductAttention(nn.Module):
         score = self.softmax(score)
         v = score @ v
         return v, score
+    
+class LayerNorm(nn.Module):
+    #            x - E(x)
+    #   y = -------------------  *  gemma + beta
+    #       [Var(s) + eps].sqrt
+    def __init__(self, d_model, eps=1e-12):
+        super(LayerNorm, self).__init__()
+        self.gemma = nn.Parameter(torch.ones(d_model))
+        self.beta = nn.Parameter(torch.zeros(d_model))
+        self.eps = eps
+    
+    def forward(self, x):
+        mean = x.mean(-1, keepdim=True)
+        var = x.var(-1, unbias = False, keepdim = True)
+        # -1 means last dimension
+        out = (x - mean) / torch.sqrt(var + self.eps)
+        out = self.gemma * out + self.beta
+        return out
+#   
+#   FF - Layer
+#
+#   FFN(s) = max(0,xW1 + b1)W2 + b2
+#   
+#   input is [batchsize, m, 512]
+#   Output is [batchsize, m, 512]
+#
+class PositionwiseFeedForward(nn.Module):
+    def __init__(self, d_model, hidden, drop_prob=0.1):
+        super(PositionwiseFeedForward, self).__init__()
+        self.linear1 = nn.Linear(d_model, hidden)
+        self.linear1 = nn.Linear(hidden, d_model)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=drop_prob)
+    
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.linear2(x)
+        return x
+
+class EncoderLayer(nn.Module):
+    def __init__(self, d_model, ffn_hidden, n_head, drop_prob):
+        super(EncoderLayer, self).__init__()
+        self.attention = MultiHeadAttention(d_model=d_model)
+        self.norm1 = LayerNorm(d_model=d_model)
+        self.dropout1 = nn.Dropout(p = drop_prob)
+        
+        self.ffn = PositionwiseFeedForward(d_model=d_model, hidden=ffn_hidden, drop_prob=drop_prob)
+        self.norm2 = LayerNorm(d_model=d_model)
+        self.dropout2 = nn.Dropout(p=drop_prob)
+        
+    def forward(self, x, src_mask):
+        # 1. compute self attention
+        _x = x
+        x = self.attention(q=x, k=x, v=x, mask=src_mask)
+        
+        # 2. add and norm
+        x = self.dropout1(x)
+        x = self.norm1(x + _x)
+        
+        # 3. positionwise feed forward network
+        _x = x
+        x = self.ffn(x)
+        
+        # 4. add and norm
+        x = self.dropout2(x)
+        x = self.norm2(x + _x)
+        return x
+    
+class Encoder(nn.Module):
+    def __init__(self, enc_voc_size, max_len, d_model, ffn_hidden, n_head, n_layers, drop_prob, device):
+        super().__init__()
+        self.emb = TransformerEmbedding(d_model = d_model,
+                                        max_len = max_len,
+                                        vocab_size = enc_voc_size,
+                                        drop_prob = drop_prob,
+                                        device = device)
+        self.layers = nn.ModuleList([EncoderLayer(d_model = d_model,
+                                                  ffn_hidden = ffn_hidden,
+                                                  n_head = n_head,
+                                                  drop_prob = drop_prob)
+                                     for _ in range(n_layers)])
+    def forward(self, x, src_mask):
+        x = self.emb(x)
+        for layer in self.layers:
+            x = layer(x, src_mask)
+        
+        return x
+
+class DecoderLayer(nn.Module):
+
+    def __init__(self, d_model, ffn_hidden, n_head, drop_prob):
+        super(DecoderLayer, self).__init__()
+        self.self_attention = MultiHeadAttention(d_model=d_model, n_head=n_head)
+        self.norm1 = LayerNorm(d_model=d_model)
+        self.dropout1 = nn.Dropout(p=drop_prob)
+
+        self.enc_dec_attention = MultiHeadAttention(d_model=d_model, n_head=n_head)
+        self.norm2 = LayerNorm(d_model=d_model)
+        self.dropout2 = nn.Dropout(p=drop_prob)
+
+        self.ffn = PositionwiseFeedForward(d_model=d_model, hidden=ffn_hidden, drop_prob=drop_prob)
+        self.norm3 = LayerNorm(d_model=d_model)
+        self.dropout3 = nn.Dropout(p=drop_prob)
+
+    def forward(self, dec, enc, trg_mask, src_mask):    
+        # 1. compute self attention
+        _x = dec
+        x = self.self_attention(q=dec, k=dec, v=dec, mask=trg_mask)
+        
+        # 2. add and norm
+        x = self.dropout1(x)
+        x = self.norm1(x + _x)
+
+        if enc is not None:
+            # 3. compute encoder - decoder attention
+            _x = x
+            x = self.enc_dec_attention(q=x, k=enc, v=enc, mask=src_mask)
+            
+            # 4. add and norm
+            x = self.dropout2(x)
+            x = self.norm2(x + _x)
+
+        # 5. positionwise feed forward network
+        _x = x
+        x = self.ffn(x)
+        
+        # 6. add and norm
+        x = self.dropout3(x)
+        x = self.norm3(x + _x)
+        return x
+    
+class Decoder(nn.Module):
+    def __init__(self, dec_voc_size, max_len, d_model, ffn_hidden, n_head, n_layers, drop_prob, device):
+        super().__init__()
+        self.emb = TransformerEmbedding(d_model=d_model,
+                                        drop_prob=drop_prob,
+                                        max_len=max_len,
+                                        vocab_size=dec_voc_size,
+                                        device=device)
+
+        self.layers = nn.ModuleList([DecoderLayer(d_model=d_model,
+                                                  ffn_hidden=ffn_hidden,
+                                                  n_head=n_head,
+                                                  drop_prob=drop_prob)
+                                     for _ in range(n_layers)])
+
+        self.linear = nn.Linear(d_model, dec_voc_size)
+
+    def forward(self, trg, src, trg_mask, src_mask):
+        trg = self.emb(trg)
+
+        for layer in self.layers:
+            trg = layer(trg, src, trg_mask, src_mask)
+
+        # pass to LM head
+        output = self.linear(trg)
+        return output
+    
+
+        
