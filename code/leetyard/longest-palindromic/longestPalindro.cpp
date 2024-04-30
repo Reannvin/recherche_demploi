@@ -3,7 +3,7 @@
 class Solution {
 public:
     string exp(string s, int l, int r){
-        while(l>0 && r<s.size() && s[l] == s[r]){
+        while(l>=   0 && r<s.size() && s[l] == s[r]){
             l -- ;
             r ++ ;
         }
