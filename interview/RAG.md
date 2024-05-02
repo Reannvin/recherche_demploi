@@ -4,7 +4,7 @@
 
 ​	RAG主要的两个步骤是：
 
-​	1搜索：使用向量库中的text embeding获取knowledge base中的信息。
+​	1.搜索：使用向量库中的text embeding获取knowledge base中的信息。
 
 ​	2.生成：将相关信息提示插入到prompt中。
 
