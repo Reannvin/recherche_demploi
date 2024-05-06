@@ -2,15 +2,19 @@
 
 - const的作用有哪些，谈一谈你对const的理解？
   - const是一个C语言的关键字，它的作用是限定一个变量不允许被改变。const是给系统看，让系统不要改变我的值。const也是给程序员看，让程序员看这里为什么要用const，到底能不能改这个值，而不是不管三七二十一的，无视const，用指针调用指针来把const的作用给无视掉。
-
 - **描述char\*、const char\*、char\* const、const char\* const的区别？**
   - const char * 修饰 * ，所以值不能改变。 即 指向常量的指针变量。
   - char * const 修饰 s ，所以指向不可变。 即 指向变量的指针常量。
-
 - 指针常量和常量指针有什么区别？
   - 指针常量时指针类型的常量，常量指针是指向常量的指针。
-
 - **[static](https://www.zhihu.com/search?q=static&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2590210440})**的作用是什么，什么情况下用到static？**全局变量与局部变量的区别？**宏定义的作用是什么？**内存对齐的概念？为什么会有内存对齐？**[inline](https://www.zhihu.com/search?q=inline&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2590210440}) **[内联函数](https://www.zhihu.com/search?q=内联函数&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A1868370927})的特点有哪些？它的优缺点是什么？**如何避免[野指针](https://www.zhihu.com/search?q=野指针&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2590210440})？
+  - static : 静态局部变量，不可被其他文件所用，其他文件可定义重名变量。
+  - 全局变量的生命周期与程序一致，局部变量的程序周期在函数中，作用域也是。
+  - 宏定义：在C++头文件中，我们常常会用到几个宏定义（#ifndef #define #endif）。
+  - 内存对齐：https://www.zhihu.com/question/627238873/answer/3260521889
+  - 内联函数：
+  - 野指针：
+
 - **如何计算结构体长度？**
 - sizeof和[strlen](https://www.zhihu.com/search?q=strlen&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A1868370927})有什么区别？
 - **知道条件变量吗？条件变量为什么要和锁配合使用？**
