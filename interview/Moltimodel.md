@@ -69,5 +69,17 @@
 
 ​	“某种程度来说双塔结构是表征融合的特例。”
 
-​	
+​	也就是先使用CNN Backbone提取视觉特征，再和语言特征融合。
 
+​	2019年之后，BERT开始流行，多模态更多的开始借鉴BERT的成功，使用Transformer Encoder来作为Modality Interaction模块来融合视觉和语言特征，进而通过大规模与训练来学习多模态表征。
+
+​	“显而易见，这个方案把以前的堆叠全连接网络替代了。”
+
+​	**如何对视觉特征进行有效编码，得到和文本一样的Token Embedding序列作为模型输入？**
+
+- CNN时期
+  - Region Feature Base : 先通过基于CNN的目标检测模型(Fast-RCNN之类的)识别图像中的ROI，再提取ROI中的表征向量作为**视觉输入Embedding序列**。好处是能让每个人ROI都有明确的语义表达，方便后续和文本特征对齐。比如LXMERT, VL-BERT和UNITER。
+  - Grid Feature Base: 上述方法尽管合理，但还是很依赖前置的目标检测模型。难道你不觉得整个链路过于繁重了吗？不经过区域检测，直接用CNN网络提取深层的像素特征作为交互模型输入也是一种方法。Pixel-Bert。
+  - 这两个方法的区别就是一个先用CNN Backbone提取ROI Feature，一个直接用CNN Backbone。
+    - LXMERT的网络结构如下，使用**两路深层表征输入结构**。在视觉上，图像经过目标检测得到区域块的特征序列，又经过Transformer做进一步编码区域块之间的关系（Object-Relationship Encoder）。文本侧则是通过BERT结构得到文本特征序列。二者使用Transformer 做交叉Attention来进行多任务的预训练。LXMERT的预训练任务包括Masked图像特征预测，Label预测，VQA，图文匹配程度。![img](https://pic2.zhimg.com/v2-a4649f0b1e2aaa1757b6b146ebf547b1_r.jpg)
+    - VL-BERT跟LXMERT最大的区别就是VL-BERT是单路输入模式，视觉Region特征被提取后直接和文本Embedding一起拼接输入Transformer进行多模态的交叉Attention。![img](https://pic1.zhimg.com/80/v2-07d298dcc2f4447162b5b41e76d72ac4_720w.webp)VL-BERT的预训练任务包括两个，带视觉特征的**掩码**语言学习模型 和 带文本特征的视觉**Region**分类
