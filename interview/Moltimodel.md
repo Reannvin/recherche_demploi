@@ -82,4 +82,47 @@
   - Grid Feature Base: 上述方法尽管合理，但还是很依赖前置的目标检测模型。难道你不觉得整个链路过于繁重了吗？不经过区域检测，直接用CNN网络提取深层的像素特征作为交互模型输入也是一种方法。Pixel-Bert。
   - 这两个方法的区别就是一个先用CNN Backbone提取ROI Feature，一个直接用CNN Backbone。
     - LXMERT的网络结构如下，使用**两路深层表征输入结构**。在视觉上，图像经过目标检测得到区域块的特征序列，又经过Transformer做进一步编码区域块之间的关系（Object-Relationship Encoder）。文本侧则是通过BERT结构得到文本特征序列。二者使用Transformer 做交叉Attention来进行多任务的预训练。LXMERT的预训练任务包括Masked图像特征预测，Label预测，VQA，图文匹配程度。![img](https://pic2.zhimg.com/v2-a4649f0b1e2aaa1757b6b146ebf547b1_r.jpg)
-    - VL-BERT跟LXMERT最大的区别就是VL-BERT是单路输入模式，视觉Region特征被提取后直接和文本Embedding一起拼接输入Transformer进行多模态的交叉Attention。![img](https://pic1.zhimg.com/80/v2-07d298dcc2f4447162b5b41e76d72ac4_720w.webp)VL-BERT的预训练任务包括两个，带视觉特征的**掩码**语言学习模型 和 带文本特征的视觉**Region**分类
+    - VL-BERT跟LXMERT最大的区别就是VL-BERT是单路输入模式，视觉Region特征被提取后直接和文本Embedding一起拼接输入Transformer进行多模态的交叉Attention。![img](https://pic1.zhimg.com/80/v2-07d298dcc2f4447162b5b41e76d72ac4_720w.webp)VL-BERT的预训练任务包括两个，带视觉特征的**掩码**语言学习模型 和 带文本特征的视觉**Region**分类。经过预训练和微调后可用于多种视觉和语言任务。
+    - UNITER
+    - Pixel-BERT
+  
+- ViT时期
+
+  - Pixel-BERT为了不依赖目标检测模型，仅使用深层卷积神经网络提取像素级别的特征作为下游多模态融合模块。那肯定也可以连深层CNN这一步都跳过，加工加工直接输入到Transformer网络和文本特征融合。
+
+  - CNN具有 **局部感知性**，**层级结构**， **参数共享**，和 **空间不变性**。
+
+    1. 局部感知性：卷积层通过卷积操作和参数共享，能够高效提取出图像的局部特征。这种局部感知性能很好的捕捉图片中的边缘，纹理之类的结构特征。
+    2. 层级结构性：CNN有很多模块，卷积层，激活函数，池化层和全连接层，能逐步提取特征。
+    3. 参数共享：卷积层中参数共享能让CNN的训练更高效，相同的卷积核在不同位置对图像进行卷积操作，参数共享减少了模型的复杂度，也增加了模型的泛化能力。
+    4. 空间不变性：卷及操作具有平移不变性，图像物体的特征不受其具体位置影响。
+
+  - 你也知道的吧，如果是Transformer的话，它的Self-Attention是全局的。
+
+    - 从VIT开始说起吧…VIT将图片平铺成2D的切片(Patch)序列并通过线性投影层将其转换为特征向量，对应自然语言处理中的词向量输入。同时切片自己位置编号经过Embedding对应到位置向量。词向量加位置向量相加输入Transformer Encoder。同样，VIT通过一个可训练的CLS  token得到整个图片的表征，并接入全链接层服务于下游的分类任务。当经过**大量的数据上预训练**，迁移到多个中等或小规模的图像识别基准（ImageNet, CIFAR-100, VTAB  等）时，ViT取得了比CNN系的模型更好的结果，同时在训练时需要的计算资源大大减少。
+    - MAE
+    - BEIT
+
+  - 来说说CLIP吧。
+
+    - 2021年，OpenAI发布了多模态对齐方法 - CLIP。clip以其强大的通用性和Zero-shot著称。Clip的核心思路是通过对比学习的方法进行视觉和自然语言表征对齐。![img](https://pic1.zhimg.com/80/v2-af4b50727c8442151ea9369d1d651b6c_720w.webp)CLIP首先分别对文本和图像进行特征提取。文本Encoder是BERT，视觉Encoder可以是VIT也可以是CNN。得到图文表征向量后对特征进行 **标准化**（**Normalize**)，之后计算Batch内图文Pair之间的 **余弦距离**。通过 **Triplet** **Loss** 或者**InfoNCELoss**等目标函数拉近正样本对之间的距离，同时拉远负样本对之间的距离。
+
+      - 余弦距离：几何中的夹角余弦可以用来衡量两个向量方向的差异，机器学习使用这一概念来衡量样本之间的差异 - 也就是重视方向差异并相对忽略长度和距离。
+
+        ```python
+        def CosineDistance(x,y):
+            x = np.array(x)
+            y = np.array(y)
+            return np.dot(x,y)/(np.linalg.norm(x)*np.linalg.norm(y))
+        ```
+
+      - Triplet Loss：为了更好的区分相似度极大的正负样本
+
+        ```python
+        def tripletLoss(a,p,n):
+            return max(0,threshold + distance(a,p) - distance(a,n))
+        ```
+
+      经过大量图文Pair对进行预训练后，就能获得具有同样表征的图文Encoder。要使用它适配下游任务基本上要么对模型进行微调，要么做单模态任务。
+
+    - 其他用法也不是没有，那就是用Zero-Shot来做目标检测。只要在图像任务中的候选类别中加一句“A photo of a {object}”的提示词，就可以经过图像Encoder拿到视觉表征来和对比不同object的相似度。
